@@ -1,0 +1,8 @@
+{
+  "port": 8080,
+  "pin": "1234",
+  "grace_period_seconds": 30,
+  "allow_restart": true,
+  "allow_sleep": true,
+  "allow_lock": true
+}

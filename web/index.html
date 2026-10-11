@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0d1117">
+  <title>Power Switch · Remote Shutdown</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(circle at 50% 20%, #161b22, #090d16 85%);
+      color: #e6edf3;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 24px 16px 40px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    /* Header & Status */
+    .header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      backdrop-filter: blur(12px);
+    }
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #7ee787;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #238636;
+      box-shadow: 0 0 10px #238636;
+      animation: pulse 2s infinite ease-in-out;
+    }
+    .status-dot.offline {
+      background: #da3633;
+      box-shadow: 0 0 10px #da3633;
+      animation: none;
+    }
+    .status-badge.offline {
+      color: #f85149;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.2); opacity: 0.6; }
+    }
+    .device-info {
+      font-size: 12px;
+      color: #8b949e;
+      text-align: right;
+    }
+
+    /* Pending Alert Banner */
+    .pending-banner {
+      display: none;
+      width: 100%;
+      background: linear-gradient(135deg, rgba(218, 54, 51, 0.25), rgba(248, 81, 73, 0.15));
+      border: 1px solid #f85149;
+      border-radius: 16px;
+      padding: 16px;
+      text-align: center;
+      box-shadow: 0 0 24px rgba(248, 81, 73, 0.3);
+      animation: bannerPulse 1.2s infinite alternate ease-in-out;
+    }
+    @keyframes bannerPulse {
+      from { box-shadow: 0 0 15px rgba(248, 81, 73, 0.2); }
+      to { box-shadow: 0 0 35px rgba(248, 81, 73, 0.5); }
+    }
+    .pending-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #ff7b72;
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+    }
+    .pending-timer {
+      font-size: 32px;
+      font-weight: 900;
+      font-family: monospace;
+      color: #fff;
+      margin: 4px 0 12px;
+    }
+    .abort-btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: none;
+      background: #da3633;
+      color: #fff;
+      font-weight: 800;
+      font-size: 15px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(218, 54, 51, 0.4);
+      transition: all 0.2s ease;
+    }
+    .abort-btn:active {
+      transform: scale(0.97);
+      background: #b62324;
+    }
+
+    /* Big Power Button Card */
+    .power-card {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(20px);
+    }
+
+    .power-button-wrap {
+      position: relative;
+      width: 200px;
+      height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .power-ring {
+      position: absolute;
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      border: 2px dashed rgba(248, 81, 73, 0.3);
+      animation: rotateRing 20s linear infinite;
+    }
+    @keyframes rotateRing {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .power-button {
+      position: relative;
+      width: 170px;
+      height: 170px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #ff4b4b, #b91c1c 70%, #7f1d1d);
+      border: 3px solid rgba(255, 255, 255, 0.25);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow:
+        0 0 40px rgba(239, 68, 68, 0.4),
+        inset 0 4px 10px rgba(255, 255, 255, 0.4),
+        inset 0 -6px 14px rgba(0, 0, 0, 0.6);
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .power-button:active {
+      transform: scale(0.92);
+      box-shadow:
+        0 0 60px rgba(239, 68, 68, 0.7),
+        inset 0 8px 16px rgba(0, 0, 0, 0.8);
+    }
+    .power-icon {
+      width: 60px;
+      height: 60px;
+      fill: none;
+      stroke: #ffffff;
+      stroke-width: 2.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+    }
+    .power-label {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: #ffffff;
+      margin-top: 6px;
+      text-transform: uppercase;
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+    }
+
+    .power-hint {
+      margin-top: 24px;
+      font-size: 13px;
+      color: #8b949e;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Actions Grid */
+    .actions-grid {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .action-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 16px 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: #c9d1d9;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.18s ease;
+    }
+    .action-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .action-btn:active {
+      transform: scale(0.95);
+      background: rgba(255, 255, 255, 0.12);
+    }
+    .action-btn svg {
+      width: 24px;
+      height: 24px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+    }
+    .action-btn.restart svg { stroke: #58a6ff; }
+    .action-btn.sleep svg { stroke: #d29922; }
+    .action-btn.lock svg { stroke: #bc8cff; }
+
+    /* PC Info Card */
+    .info-card {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      padding: 16px;
+      font-size: 12px;
+      color: #8b949e;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .info-val {
+      font-weight: 600;
+      color: #c9d1d9;
+      font-family: monospace;
+    }
+
+    /* Modal Sheet */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal-box {
+      width: 100%;
+      max-width: 360px;
+      background: #161b22;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+      transform: scale(0.92);
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .modal-overlay.active .modal-box {
+      transform: scale(1);
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #f0f6fc;
+      text-align: center;
+    }
+    .modal-desc {
+      font-size: 13px;
+      color: #8b949e;
+      text-align: center;
+      line-height: 1.4;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .modal-btn {
+      flex: 1;
+      padding: 12px;
+      border-radius: 12px;
+      border: none;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .modal-btn.cancel {
+      background: rgba(255, 255, 255, 0.08);
+      color: #c9d1d9;
+    }
+    .modal-btn.confirm-shutdown {
+      background: #da3633;
+      color: #fff;
+    }
+    .modal-btn.confirm-restart {
+      background: #1f6feb;
+      color: #fff;
+    }
+    .modal-btn.confirm-sleep {
+      background: #d29922;
+      color: #fff;
+    }
+    .modal-btn.confirm-closeapps {
+      background: #1f6feb;
+      color: #fff;
+    }
+
+    /* PIN Entry Modal */
+    .pin-input {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(0, 0, 0, 0.4);
+      color: #fff;
+      font-size: 24px;
+      font-family: monospace;
+      text-align: center;
+      letter-spacing: 8px;
+      outline: none;
+    }
+    .pin-input:focus {
+      border-color: #58a6ff;
+      box-shadow: 0 0 10px rgba(88, 166, 255, 0.3);
+    }
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .key-btn {
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      color: #fff;
+      font-size: 20px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .key-btn:active {
+      background: rgba(255, 255, 255, 0.15);
+      transform: scale(0.96);
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      background: #238636;
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.25s ease;
+      pointer-events: none;
+      z-index: 2000;
+    }
+    .toast.error {
+      background: #da3633;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="status-badge" id="statusBadge">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">ONLINE</span>
+      </div>
+      <div class="device-info">
+        <div id="pcName">DESKTOP</div>
+        <div id="userUptime" style="font-size: 11px; opacity: 0.7;">Checking...</div>
+      </div>
+    </div>
+
+    <!-- Active Shutdown Countdown Banner -->
+    <div class="pending-banner" id="pendingBanner">
+      <div class="pending-title">⚠️ SYSTEM ACTION IN PROGRESS</div>
+      <div class="pending-timer" id="pendingTimer">30s</div>
+      <button class="abort-btn" onclick="abortShutdown()">🛑 ABORT / CANCEL ACTION</button>
+    </div>
+
+    <!-- Power Card -->
+    <div class="power-card">
+      <div class="power-button-wrap">
+        <div class="power-ring"></div>
+        <button class="power-button" onclick="confirmAction('shutdown')">
+          <svg class="power-icon" viewBox="0 0 24 24">
+            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+            <line x1="12" y1="2" x2="12" y2="12"></line>
+          </svg>
+          <div class="power-label">SHUT DOWN</div>
+        </button>
+      </div>
+
+      <div class="power-hint">
+        <span>⚡ Instant shutdown or 10s safety timer</span>
+      </div>
+    </div>
+
+    <!-- Safely Close Apps Button -->
+    <button class="action-btn" id="closeAppsBtn" style="width: 100%; padding: 14px 18px; flex-direction: row; justify-content: space-between; background: rgba(56, 139, 253, 0.08); border: 1px solid rgba(56, 139, 253, 0.25); border-radius: 16px;" onclick="openAppsManagerModal()">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <svg viewBox="0 0 24 24" style="width: 22px; height: 22px; stroke: #58a6ff; fill: none; stroke-width: 2;">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="9" y1="9" x2="15" y2="15"></line>
+          <line x1="15" y1="9" x2="9" y2="15"></line>
+        </svg>
+        <div style="text-align: left;">
+          <div style="font-weight: 700; font-size: 14px; color: #f0f6fc;">Manage & Close Apps</div>
+          <div style="font-size: 11px; color: #8b949e;" id="appsSubtext">Scanning open apps...</div>
+        </div>
+      </div>
+      <span id="appsCountBadge" style="background: rgba(56, 139, 253, 0.2); color: #58a6ff; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">Checking</span>
+    </button>
+
+    <!-- Quick Actions -->
+    <div class="actions-grid">
+      <button class="action-btn restart" onclick="confirmAction('restart')">
+        <svg viewBox="0 0 24 24">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+        </svg>
+        <span>Restart</span>
+      </button>
+
+      <button class="action-btn sleep" onclick="confirmAction('sleep')">
+        <svg viewBox="0 0 24 24">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+        <span>Sleep</span>
+      </button>
+
+      <button class="action-btn lock" onclick="triggerLock()">
+        <svg viewBox="0 0 24 24">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <span>Lock PC</span>
+      </button>
+    </div>
+
+    <!-- Machine Info -->
+    <div class="info-card">
+      <div class="info-row">
+        <span>Computer Name</span>
+        <span class="info-val" id="infoHost">-</span>
+      </div>
+      <div class="info-row">
+        <span>User</span>
+        <span class="info-val" id="infoUser">-</span>
+      </div>
+      <div class="info-row">
+        <span>Local IP</span>
+        <span class="info-val" id="infoIp">-</span>
+      </div>
+      <div class="info-row">
+        <span>PIN Protection</span>
+        <span class="info-val" style="color: #7ee787; cursor: pointer;" onclick="promptPin(true)">Locked (Change)</span>
+      </div>
+    </div>
+
+    <!-- QR Code Button -->
+    <button class="action-btn" style="width: 100%; padding: 14px; flex-direction: row; gap: 10px; font-size: 13px;" onclick="openQrModal()">
+      <svg viewBox="0 0 24 24" style="width: 20px; height: 20px;"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>
+      <span>📱 Open on Phone via QR Code</span>
+    </button>
+  </div>
+
+  <!-- QR Modal -->
+  <div class="modal-overlay" id="qrModal">
+    <div class="modal-box" style="text-align: center;">
+      <div class="modal-title">📱 Open on Phone</div>
+      <div class="modal-desc">Point your phone's camera at this QR code to access your shutdown switch:</div>
+      <div style="display: flex; justify-content: center; margin: 10px 0;">
+        <img id="qrImg" src="" alt="QR Code" style="border-radius: 12px; background: #fff; padding: 10px; width: 200px; height: 200px;">
+      </div>
+      <div id="qrUrlText" style="font-size: 11px; word-break: break-all; color: #58a6ff; font-family: monospace;"></div>
+      <button class="modal-btn cancel" onclick="closeQrModal()" style="margin-top: 10px;">Close</button>
+    </div>
+  </div>
+
+  <!-- Apps Management Modal -->
+  <div class="modal-overlay" id="appsModal">
+    <div class="modal-box" style="max-width: 380px; padding: 22px;">
+      <div class="modal-title" style="display: flex; justify-content: space-between; align-items: center;">
+        <span>🧹 Manage Apps</span>
+        <span id="modalAppCountPill" style="font-size: 11px; font-weight: 700; background: rgba(88, 166, 255, 0.2); color: #58a6ff; padding: 3px 10px; border-radius: 12px;">0 Open</span>
+      </div>
+      
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+        <span style="font-size: 12px; color: #8b949e;" id="selectedCountText">Select apps to close:</span>
+        <button id="toggleSelectAllBtn" onclick="toggleSelectAllApps()" style="background: rgba(255, 255, 255, 0.08); border: none; color: #58a6ff; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 8px; cursor: pointer;">Select All</button>
+      </div>
+
+      <!-- App List -->
+      <div id="appsListContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto; margin: 12px 0; padding-right: 2px;">
+        <!-- Dynamically injected -->
+      </div>
+
+      <div class="modal-actions" style="margin-top: 6px; gap: 8px;">
+        <button class="modal-btn cancel" onclick="closeAppsModal()">Cancel</button>
+        <button class="modal-btn" id="closeSelectedBtn" onclick="executeCloseSelectedApps()" style="background: #1f6feb; color: #fff;">Close Selected</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmation Modal -->
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal-box">
+      <div class="modal-title" id="confirmTitle">Confirm Action</div>
+      <div class="modal-desc" id="confirmDesc">Are you sure you want to perform this action?</div>
+      <div class="modal-actions" id="confirmActionsContainer" style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
+        <!-- Injected dynamically -->
+      </div>
+      <button class="modal-btn cancel" onclick="closeModal()" style="width: 100%; margin-top: 4px;">Cancel</button>
+    </div>
+  </div>
+
+  <!-- PIN Modal -->
+  <div class="modal-overlay" id="pinModal">
+    <div class="modal-box">
+      <div class="modal-title">🔐 Enter Security PIN</div>
+      <div class="modal-desc">Enter your 4-digit PIN to authenticate this device.</div>
+      <input type="password" id="pinInput" class="pin-input" maxlength="8" readonly placeholder="••••">
+      <div class="keypad">
+        <button class="key-btn" onclick="pressKey('1')">1</button>
+        <button class="key-btn" onclick="pressKey('2')">2</button>
+        <button class="key-btn" onclick="pressKey('3')">3</button>
+        <button class="key-btn" onclick="pressKey('4')">4</button>
+        <button class="key-btn" onclick="pressKey('5')">5</button>
+        <button class="key-btn" onclick="pressKey('6')">6</button>
+        <button class="key-btn" onclick="pressKey('7')">7</button>
+        <button class="key-btn" onclick="pressKey('8')">8</button>
+        <button class="key-btn" onclick="pressKey('9')">9</button>
+        <button class="key-btn" onclick="clearPin()" style="font-size: 14px;">CLR</button>
+        <button class="key-btn" onclick="pressKey('0')">0</button>
+        <button class="key-btn" onclick="submitPin()" style="font-size: 14px; background: #238636; color: #fff;">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toastMsg">Action executed</div>
+
+  <script>
+    let currentPin = localStorage.getItem("remote_shutdown_pin") || "";
+    let currentOpenApps = [];
+    let currentOpenAppsDetails = [];
+    let allAppsSelected = true;
+    let pendingAction = null;
+    let countdownInterval = null;
+    let remainingSeconds = 30;
+
+    function getAppIcon(name) {
+      name = (name || "").toLowerCase();
+      if (name.includes("brave") || name.includes("chrome") || name.includes("edge") || name.includes("firefox") || name.includes("opera") || name.includes("vivaldi") || name.includes("arc")) return "🌐";
+      if (name.includes("steam") || name.includes("epic")) return "🎮";
+      if (name.includes("whatsapp") || name.includes("telegram") || name.includes("discord") || name.includes("slack") || name.includes("teams")) return "💬";
+      if (name.includes("spotify") || name.includes("vlc")) return "🎵";
+      if (name.includes("torrent")) return "📥";
+      if (name.includes("code") || name.includes("devenv") || name.includes("sublime")) return "💻";
+      if (name.includes("word") || name.includes("excel") || name.includes("powerpnt") || name.includes("notepad")) return "📄";
+      return "⚡";
+    }
+
+    function openAppsManagerModal() {
+      vibrate([30]);
+      if (!currentPin) { promptPin(); return; }
+      renderAppsList();
+      document.getElementById("appsModal").classList.add("active");
+    }
+
+    function closeAppsModal() {
+      document.getElementById("appsModal").classList.remove("active");
+    }
+
+    function renderAppsList() {
+      const container = document.getElementById("appsListContainer");
+      const countPill = document.getElementById("modalAppCountPill");
+      container.innerHTML = "";
+
+      if (!currentOpenAppsDetails || currentOpenAppsDetails.length === 0) {
+        countPill.innerText = "0 Open";
+        container.innerHTML = `<div style="text-align: center; padding: 24px 10px; color: #8b949e; font-size: 13px;">No user applications are currently running.</div>`;
+        document.getElementById("closeSelectedBtn").disabled = true;
+        document.getElementById("closeSelectedBtn").style.opacity = "0.5";
+        document.getElementById("toggleSelectAllBtn").style.display = "none";
+        document.getElementById("selectedCountText").innerText = "All applications are closed.";
+        return;
+      }
+
+      countPill.innerText = `${currentOpenAppsDetails.length} Open`;
+      document.getElementById("toggleSelectAllBtn").style.display = "inline-block";
+      document.getElementById("closeSelectedBtn").disabled = false;
+      document.getElementById("closeSelectedBtn").style.opacity = "1";
+
+      currentOpenAppsDetails.forEach(app => {
+        const icon = getAppIcon(app.name);
+        const row = document.createElement("div");
+        row.style = "display: flex; align-items: center; justify-content: space-between; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 10px 12px; gap: 8px;";
+        row.innerHTML = `
+          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; flex: 1; user-select: none; min-width: 0;">
+            <input type="checkbox" class="app-checkbox" value="${app.name}" checked style="width: 18px; height: 18px; accent-color: #1f6feb; cursor: pointer;" onchange="updateSelectedCount()">
+            <span style="font-size: 13px; font-weight: 600; color: #e6edf3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${icon} ${app.display}</span>
+          </label>
+          <button onclick="closeSingleApp('${app.name}', '${app.display}')" style="background: rgba(218, 54, 51, 0.15); border: 1px solid rgba(218, 54, 51, 0.3); color: #ff7b72; font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 8px; cursor: pointer; flex-shrink: 0;">Close</button>
+        `;
+        container.appendChild(row);
+      });
+
+      allAppsSelected = true;
+      document.getElementById("toggleSelectAllBtn").innerText = "Deselect All";
+      updateSelectedCount();
+    }
+
+    function toggleSelectAllApps() {
+      vibrate([20]);
+      const checkboxes = document.querySelectorAll(".app-checkbox");
+      allAppsSelected = !allAppsSelected;
+      checkboxes.forEach(cb => cb.checked = allAppsSelected);
+      document.getElementById("toggleSelectAllBtn").innerText = allAppsSelected ? "Deselect All" : "Select All";
+      updateSelectedCount();
+    }
+
+    function updateSelectedCount() {
+      const checkboxes = document.querySelectorAll(".app-checkbox:checked");
+      const count = checkboxes.length;
+      const total = currentOpenAppsDetails.length;
+      document.getElementById("selectedCountText").innerText = `${count} of ${total} selected`;
+      const btn = document.getElementById("closeSelectedBtn");
+      if (count === 0) {
+        btn.innerText = "Close Selected (0)";
+        btn.disabled = true;
+        btn.style.opacity = "0.5";
+      } else if (count === total) {
+        btn.innerText = `Close All (${count})`;
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        document.getElementById("toggleSelectAllBtn").innerText = "Deselect All";
+        allAppsSelected = true;
+      } else {
+        btn.innerText = `Close Selected (${count})`;
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        document.getElementById("toggleSelectAllBtn").innerText = "Select All";
+        allAppsSelected = false;
+      }
+    }
+
+    async function closeSingleApp(name, display) {
+      vibrate([40]);
+      if (!currentPin) { promptPin(); return; }
+      
+      // Immediate visual update
+      currentOpenAppsDetails = currentOpenAppsDetails.filter(a => a.name !== name);
+      renderAppsList();
+      showToast(`Closing ${display}...`);
+
+      try {
+        const res = await fetch("/api/closeapps", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin: currentPin, apps: [name] })
+        });
+        const data = await res.json();
+        if (data.status === "ok") {
+          showToast(`Closed ${display} safely!`);
+        } else {
+          showToast(data.message || "Failed to close app", true);
+        }
+      } catch (e) {
+        showToast("Connection error", true);
+      } finally {
+        await fetchStatus();
+        renderAppsList();
+      }
+    }
+
+    async function executeCloseSelectedApps() {
+      vibrate([40]);
+      const checkedBoxes = Array.from(document.querySelectorAll(".app-checkbox:checked"));
+      if (checkedBoxes.length === 0) return;
+      const selectedNames = checkedBoxes.map(cb => cb.value);
+
+      const btn = document.getElementById("closeSelectedBtn");
+      btn.innerText = "Closing...";
+      btn.disabled = true;
+
+      // Immediate visual update
+      currentOpenAppsDetails = currentOpenAppsDetails.filter(a => !selectedNames.includes(a.name));
+      renderAppsList();
+      showToast(`Closing ${selectedNames.length} app(s)...`);
+
+      try {
+        const res = await fetch("/api/closeapps", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin: currentPin, apps: selectedNames })
+        });
+        const data = await res.json();
+        if (data.status === "ok") {
+          showToast(`Safely closed ${data.closedCount || selectedNames.length} app(s)!`);
+        } else {
+          showToast(data.message || "Failed to close apps", true);
+        }
+      } catch (e) {
+        showToast("Connection error", true);
+      } finally {
+        await fetchStatus();
+        renderAppsList();
+      }
+    }
+
+    function openQrModal() {
+      const url = window.location.href;
+      document.getElementById("qrImg").src = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(url);
+      document.getElementById("qrUrlText").innerText = url;
+      document.getElementById("qrModal").classList.add("active");
+    }
+    function closeQrModal() {
+      document.getElementById("qrModal").classList.remove("active");
+    }
+
+    function showToast(text, isError = false) {
+      const toast = document.getElementById("toastMsg");
+      toast.innerText = text;
+      toast.className = "toast show" + (isError ? " error" : "");
+      setTimeout(() => { toast.className = "toast"; }, 3500);
+    }
+
+    function vibrate(pattern = [50]) {
+      if (navigator.vibrate) {
+        navigator.vibrate(pattern);
+      }
+    }
+
+    // PIN Handling
+    function promptPin(force = false) {
+      if (!currentPin || force) {
+        document.getElementById("pinInput").value = "";
+        document.getElementById("pinModal").classList.add("active");
+      }
+    }
+
+    function pressKey(num) {
+      vibrate([20]);
+      const input = document.getElementById("pinInput");
+      if (input.value.length < 8) {
+        input.value += num;
+      }
+    }
+
+    function clearPin() {
+      vibrate([20]);
+      document.getElementById("pinInput").value = "";
+    }
+
+    async function submitPin() {
+      vibrate([40]);
+      const entered = document.getElementById("pinInput").value;
+      if (!entered) return;
+      try {
+        const res = await fetch("/api/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin: entered })
+        });
+        const data = await res.json();
+        if (data.status === "ok") {
+          currentPin = entered;
+          localStorage.setItem("remote_shutdown_pin", currentPin);
+          document.getElementById("pinModal").classList.remove("active");
+          showToast("PIN Verified!");
+          fetchStatus();
+        } else {
+          showToast("Invalid PIN!", true);
+          document.getElementById("pinInput").value = "";
+          vibrate([100, 50, 100]);
+        }
+      } catch (e) {
+        showToast("Error connecting to PC", true);
+      }
+    }
+
+    // Modal Handling
+    function confirmAction(action) {
+      vibrate([40]);
+      if (!currentPin) {
+        promptPin();
+        return;
+      }
+      pendingAction = action;
+      const modal = document.getElementById("confirmModal");
+      const title = document.getElementById("confirmTitle");
+      const desc = document.getElementById("confirmDesc");
+      const container = document.getElementById("confirmActionsContainer");
+      const pc = document.getElementById("pcName").innerText || "your PC";
+
+      if (action === "shutdown") {
+        title.innerText = "⚡ Shut Down Computer?";
+        desc.innerText = `Choose how quickly to power off ${pc}:`;
+        container.innerHTML = `
+          <button class="modal-btn confirm-shutdown" onclick="executeConfirmedAction('shutdown', 0)" style="padding: 14px; font-size: 15px; font-weight: 800; letter-spacing: 0.5px;">⚡ Turn Off Now (Instant)</button>
+          <button class="modal-btn" onclick="executeConfirmedAction('shutdown', 10)" style="padding: 12px; background: rgba(248, 81, 73, 0.15); border: 1px solid rgba(248, 81, 73, 0.4); color: #ff7b72; font-size: 13px; font-weight: 700;">⏳ Turn Off with 10s Timer (Can Cancel)</button>
+        `;
+      } else if (action === "restart") {
+        title.innerText = "🔄 Restart Computer?";
+        desc.innerText = `Choose how to reboot ${pc}:`;
+        container.innerHTML = `
+          <button class="modal-btn confirm-restart" onclick="executeConfirmedAction('restart', 0)" style="padding: 14px; font-size: 15px; font-weight: 800; letter-spacing: 0.5px;">🔄 Restart Now (Instant)</button>
+          <button class="modal-btn" onclick="executeConfirmedAction('restart', 10)" style="padding: 12px; background: rgba(56, 139, 253, 0.15); border: 1px solid rgba(56, 139, 253, 0.4); color: #58a6ff; font-size: 13px; font-weight: 700;">⏳ Restart with 10s Timer (Can Cancel)</button>
+        `;
+      } else if (action === "sleep") {
+        title.innerText = "🌙 Put Computer to Sleep?";
+        desc.innerText = `This will suspend ${pc} into low-power sleep mode immediately.`;
+        container.innerHTML = `
+          <button class="modal-btn confirm-sleep" onclick="executeConfirmedAction('sleep', 0)" style="padding: 14px; font-size: 15px; font-weight: 800;">🌙 Put to Sleep Now</button>
+        `;
+      }
+
+      modal.classList.add("active");
+    }
+
+    function closeModal() {
+      document.getElementById("confirmModal").classList.remove("active");
+      pendingAction = null;
+    }
+
+    async function executeConfirmedAction(action, delay = 0) {
+      if (!action) action = pendingAction;
+      document.getElementById("confirmModal").classList.remove("active");
+      pendingAction = null;
+      if (!action) return;
+
+      if (!currentPin) {
+        promptPin();
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/${action}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin: currentPin, delay: delay })
+        });
+        const data = await res.json();
+        if (data.status === "ok") {
+          showToast(data.message || "Command sent!");
+          vibrate([60, 40, 60]);
+          if (delay > 0 && (action === "shutdown" || action === "restart")) {
+            startCountdown(delay, action);
+          } else {
+            if (action === "shutdown") {
+              showToast("⚡ Powering off PC now. Goodbye!");
+              markOfflineUI("SHUTTING DOWN");
+            } else if (action === "restart") {
+              showToast("🔄 Rebooting PC now...");
+              markOfflineUI("REBOOTING");
+            } else if (action === "sleep") {
+              showToast("🌙 PC entering sleep mode...");
+              markOfflineUI("SLEEPING");
+            }
+          }
+        } else {
+          if (data.error === "invalid_pin") {
+            showToast("Invalid PIN! Please re-enter.", true);
+            promptPin(true);
+          } else {
+            showToast(data.message || "Action failed", true);
+          }
+        }
+      } catch (err) {
+        showToast("Connection error", true);
+      }
+    }
+
+    function markOfflineUI(text = "OFFLINE") {
+      document.getElementById("statusDot").className = "status-dot offline";
+      document.getElementById("statusText").innerText = text;
+      document.getElementById("statusBadge").className = "status-badge offline";
+    }
+
+    async function abortShutdown() {
+      vibrate([80]);
+      try {
+        const res = await fetch("/api/abort", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin: currentPin })
+        });
+        const data = await res.json();
+        if (data.status === "ok") {
+          showToast("Shutdown Aborted / Cancelled!");
+          stopCountdown();
+        } else {
+          showToast("Failed to abort", true);
+        }
+      } catch (e) {
+        showToast("Connection error", true);
+      }
+    }
+
+    async function triggerLock() {
+      vibrate([40]);
+      if (!currentPin) { promptPin(); return; }
+      try {
+        const res = await fetch("/api/lock", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin: currentPin })
+        });
+        const data = await res.json();
+        if (data.status === "ok") {
+          showToast("PC Locked!");
+        } else {
+          showToast("Failed to lock PC", true);
+        }
+      } catch (e) {
+        showToast("Connection error", true);
+      }
+    }
+
+    function startCountdown(seconds, actionName) {
+      remainingSeconds = seconds;
+      const banner = document.getElementById("pendingBanner");
+      const timer = document.getElementById("pendingTimer");
+      banner.style.display = "block";
+      timer.innerText = `${remainingSeconds}s`;
+
+      if (countdownInterval) clearInterval(countdownInterval);
+      countdownInterval = setInterval(() => {
+        remainingSeconds--;
+        if (remainingSeconds <= 0) {
+          clearInterval(countdownInterval);
+          timer.innerText = "NOW";
+          document.getElementById("statusDot").className = "status-dot offline";
+          document.getElementById("statusText").innerText = "OFFLINE";
+          document.getElementById("statusBadge").className = "status-badge offline";
+        } else {
+          timer.innerText = `${remainingSeconds}s`;
+        }
+      }, 1000);
+    }
+
+    function stopCountdown() {
+      if (countdownInterval) clearInterval(countdownInterval);
+      document.getElementById("pendingBanner").style.display = "none";
+    }
+
+    // Status Polling
+    async function fetchStatus() {
+      try {
+        const res = await fetch("/api/status");
+        if (!res.ok) throw new Error("HTTP error");
+        const data = await res.json();
+
+        document.getElementById("statusDot").className = "status-dot";
+        document.getElementById("statusText").innerText = "ONLINE";
+        document.getElementById("statusBadge").className = "status-badge";
+
+        document.getElementById("pcName").innerText = data.computerName || "PC";
+        document.getElementById("userUptime").innerText = "Uptime: " + (data.uptime || "N/A");
+
+        document.getElementById("infoHost").innerText = data.computerName || "-";
+        document.getElementById("infoUser").innerText = data.userName || "-";
+        document.getElementById("infoIp").innerText = data.localIp || "-";
+
+        if (data.openApps) {
+          currentOpenApps = data.openApps;
+          currentOpenAppsDetails = data.openAppDetails || [];
+          const count = data.openAppCount || 0;
+          const badge = document.getElementById("appsCountBadge");
+          const subtext = document.getElementById("appsSubtext");
+          if (badge && subtext) {
+            if (count > 0) {
+              badge.innerText = `${count} Open`;
+              badge.style.color = "#58a6ff";
+              badge.style.background = "rgba(56, 139, 253, 0.2)";
+              subtext.innerText = currentOpenApps.slice(0, 3).join(", ") + (count > 3 ? "..." : "");
+            } else {
+              badge.innerText = "All Clean";
+              badge.style.color = "#7ee787";
+              badge.style.background = "rgba(35, 134, 54, 0.2)";
+              subtext.innerText = "No user apps open";
+            }
+          }
+        }
+
+        if (data.shutdownPending) {
+          if (!countdownInterval) {
+            startCountdown(data.countdown || 30, "shutdown");
+          }
+        } else {
+          if (countdownInterval && remainingSeconds > 2) {
+            stopCountdown();
+          }
+        }
+      } catch (e) {
+        document.getElementById("statusDot").className = "status-dot offline";
+        document.getElementById("statusText").innerText = "UNREACHABLE";
+        document.getElementById("statusBadge").className = "status-badge offline";
+      }
+    }
+
+    // Init
+    if (!currentPin) {
+      promptPin();
+    }
+    fetchStatus();
+    setInterval(fetchStatus, 4000);
+  </script>
+</body>
+</html>

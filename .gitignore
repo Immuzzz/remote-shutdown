@@ -1,0 +1,14 @@
+# Private configuration & credentials
+config.json
+process.pid
+current_urls.txt
+*.url
+
+# Runtime logs
+*.log
+server.log
+tunnel.log
+error.log
+
+# Downloaded binaries
+cloudflared.exe
